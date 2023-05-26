@@ -90,7 +90,6 @@ def filter_tcp_live_packet(packet):
                 size_response.append(packet.length)
                 size.append(float(packet.length))
                 delay.append(float(packet.tcp.analysis_ack_rtt))
-                print('response')
         except AttributeError as e:
             # ถ้าไม่ใช่ Response
             totalpacket += 1
@@ -98,36 +97,13 @@ def filter_tcp_live_packet(packet):
             pkt_req.append(packet)
             size_request.append(packet.length)
             size.append(float(packet.length))
-            print('request')
-        # หาค่าเฉลี่ยของ size ทั้งหมด
-        for i in range(len(size)):
-            avg_size_total += float(size[i])
-        if len(size) != 0:
-            avg_size_total = avg_size_total/len(size)
-        # หาค่าเฉลี่ยของ delay
-        for i in range(len(delay)):
-            avg_delay += float(delay[i])
-        if len(delay) != 0:
-            avg_delay = avg_delay/len(delay)
-        # หาคู่
-        for i in pkt_req:
-            for j in pkt_resp:
-                if (i.tcp.ack == j.tcp.nxtseq and i.tcp.dstport == j.tcp.srcport) and len(pkt_resp) != old_resp:
-                    matchcount += 1
-                    # time_match = time.time() - lasttime
-                    # timer_match.append(time_match)
-                    # lasttime = time.time()
-                    old_resp = len(pkt_resp)
-                    break
-        num_lost = totalpacket-(matchcount*2)
-        if totalpacket != 0:
-            avg_lost = num_lost/totalpacket
 
 def counter():
     global totalpacket, num_req, num_res, num_round_t, num_round_req, num_round_res
     num_round_t.append(totalpacket)
     num_round_req.append(num_req)
     num_round_res.append(num_res)
+    print(totalpacket)
     totalpacket = 0
     num_req = 0
     num_res = 0
@@ -145,8 +121,8 @@ def result():
     plt.rcParams["figure.figsize"] = [6.50, 2.50]
     plt.rcParams["figure.autolayout"] = True
 
-    x = number_packet_t
-    y = num_round_t
+    x = num_round_t
+    y = number_packet_t
     plt.title("total packet every second")
     plt.xlabel("time(second)")
     plt.ylabel("number packet")

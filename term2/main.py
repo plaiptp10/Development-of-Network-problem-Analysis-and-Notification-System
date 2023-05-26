@@ -51,24 +51,32 @@ old_ack = 0
 avg_lost = 0
 x = 0
 receiver = []
-pkt_resp = []
-pkt_req = []
-old_resp = 0
+pkt_req_http = []
+pkt_req_dns = []
+pkt_req_icmp = []
+pkt_req_tcp = []
+pkt_resp_http = []
+pkt_resp_dns = []
+pkt_resp_icmp = []
+pkt_resp_tcp = []
+old_resp_http = 0
+old_resp_dns = 0
+old_resp_icmp = 0
+old_resp_tcp = 0
+num_round_t = []
+num_round_req = []
+num_round_res = []
+number_packet_t = []
+num1 = 0
 
 
 def capture_live_packets(parse_type, network_interface):
     cap = pyshark.LiveCapture(interface=network_interface)
-    schedule.every(1).minutes.do(result)
+    # schedule.every(1).second.do(counter)
+    schedule.every(1).minutes.do(result) #ตั้งเวลาในการสรุปข้อมูลออกมาเป็บไฟล์ seconds/minutes/hours/days
     for packet in cap.sniff_continuously():
         schedule.run_pending()
-        if parse_type == 'http':
-            filter_http_live_packet(packet)
-        elif parse_type == 'dns':
-            filter_dns_live_packet(packet)
-        elif parse_type == 'tcp':
-            filter_tcp_live_packet(packet)
-        elif parse_type == 'icmp':
-            filter_icmp_live_packet(packet)
+        filter_all_pacet(packet)
 
 
 def capture_file_packets(parse_type, pcap_file):
@@ -84,88 +92,64 @@ def capture_file_packets(parse_type, pcap_file):
             filter_icmp_file_packet(packet)
     result()
 
+def counter():
+    global totalpacket, num_req, num_res, num_round_t, num_round_req, num_round_res
+    num_round_t.append(totalpacket)
+    # num_round_req.append(num_req)
+    # num_round_res.append(num_res)
+    totalpacket = 0
+    # num_req = 0
+    # num_res = 0
 
-def filter_http_live_packet(packet):
-    global matchcount, nxtseq, ack, size, request_uri, response_uri, delay, num_lost, avg_delay, old_ack, avg_lost, avg_size_total, totalpacket
+def filter_all_pacet(packet):
+    global matchcount, size, delay, num_lost, avg_delay, old_ack, avg_lost, avg_size_total, totalpacket, pkt_resp_http, pkt_req_http, old_resp_http, pkt_resp_dns, pkt_req_dns, old_resp_dns, pkt_resp_icmp, pkt_req_icmp, old_resp_icmp, pkt_resp_tcp, pkt_req_tcp, old_resp_tcp
     # line notification
     url = 'https://notify-api.line.me/api/notify'
     token = '51P7BCktFo6YszYxIhQGFN1mKnGPLT6YYBNUtSJNTsC'
     headers = {'content-type': 'application/x-www-form-urlencoded',
                'Authorization': 'Bearer '+token}
     if hasattr(packet, 'http'):
-        # request
-        if packet[packet.transport_layer].dstport == '80':
-            nxtseq.append(packet.tcp.nxtseq)
-            request_uri.append(packet.http.request_full_uri)
-            request_number.append(packet.http.request_number)
-            size_request.append(packet.length)
-            size.append(float(packet.length))
-            totalpacket += 1
-            print('request')
-        # response
-        elif packet[packet.transport_layer].srcport == '80':
-            ack.append(packet.tcp.ack)
-            response_uri.append(packet.http.response_for_uri)
-            response_number.append(packet.http.response_number)
-            size_response.append(packet.length)
-            size.append(float(packet.length))
-            totalpacket += 1
-            print('response')
-            delay.append(float(packet.http.time))
-            if float(packet.http.time) >= 0.3:
-                msg = 'Delay!!!!'
-                r = requests.post(url, headers=headers,
-                                  data={'message': msg})
-                print(r.text)
-                notification.notify(
-                    title='Alert!!!',
-                    message='High Delay',
-                    app_icon="icon.ico",
-                    timeout=5,
-                )
-                send_alert(receiver, "Delay is too high!")
-        # หาค่าเฉลี่ยของ size ทั้งหมด
-        for i in range(len(size)):
-            avg_size_total += float(size[i])
-        if len(size) != 0:
-            avg_size_total = avg_size_total/len(size)
-        # หาค่าเฉลี่ยของ delay
-        for i in range(len(delay)):
-            avg_delay += float(delay[i])
-        if len(delay) != 0:
-            avg_delay = avg_delay/len(delay)
-        # หาจำนวนที่ match และ lost
-        for i in range(0, len(nxtseq)):
-            for j in range(0, len(ack)):
-                if nxtseq[i] == ack[j] and request_uri[i] == response_uri[j]:
-                    if len(ack) != old_ack:
-                        matchcount += 1
-                        old_ack = len(ack)
-                        break
-                    else:
-                        continue
-        num_lost = totalpacket-(matchcount*2)
-        if totalpacket != 0:
-            avg_lost = num_lost/totalpacket
-
-
-def filter_dns_live_packet(packet):
-    global matchcount, size, delay, num_lost, avg_delay, avg_lost, avg_size_total, totalpacket, pkt_resp, pkt_req, old_resp
-    url = 'https://notify-api.line.me/api/notify'
-    token = '51P7BCktFo6YszYxIhQGFN1mKnGPLT6YYBNUtSJNTsC'
-    headers = {'content-type': 'application/x-www-form-urlencoded',
-               'Authorization': 'Bearer '+token}
+        try:
+            print(packet.http)
+            if packet[packet.transport_layer].dstport == '80':
+                pkt_req_http.append(packet)
+                size_request.append(packet.length)
+                size.append(float(packet.length))
+                totalpacket += 1
+                print('http request')
+            # response
+            elif packet[packet.transport_layer].srcport == '80':
+                pkt_resp_http.append(packet)
+                size_response.append(packet.length)
+                size.append(float(packet.length))
+                totalpacket += 1
+                print('http response')
+                delay.append(float(packet.http.time))
+                if float(packet.http.time) >= 0.3:
+                    msg = 'Delay!!!!'
+                    r = requests.post(url, headers=headers,
+                                    data={'message': msg})
+                    print(r.text)
+                    notification.notify(
+                        title='Alert!!!',
+                        message='High Delay',
+                        app_icon="icon.ico",
+                        timeout=5,
+                    )
+                    send_alert(receiver, "Delay is too high!")
+        except:
+            print("not http")
     if hasattr(packet, 'dns'):
         if packet[packet.transport_layer].dstport == '53' or packet[packet.transport_layer].srcport == '53' \
                 or packet[packet.udp].dstport == '53' or packet[packet.udp].srcport == '53':
             try:
                 if packet.dns.resp_name:  # response
-                    pkt_resp.append(packet)
+                    pkt_resp_dns.append(packet)
                     size_response.append(packet.length)
                     size.append(float(packet.length))
                     delay.append(float(packet.dns.time))
                     totalpacket += 1
-                    print('response')
+                    print('dns response')
                     if float(packet.dns.time) >= 0.3:
                         msg = 'Delay!!!!'
                         r = requests.post(url, headers=headers,
@@ -180,47 +164,19 @@ def filter_dns_live_packet(packet):
                         send_alert(receiver, "Delay is too high!")
             except AttributeError as e:  # request
                 # ignore packets that aren't DNS Response
-                pkt_req.append(packet)
+                pkt_req_dns.append(packet)
                 size_request.append(packet.length)
                 size.append(float(packet.length))
                 totalpacket += 1
-                print('request')
-        # หาค่าเฉลี่ยของ size ทั้งหมด
-        for i in range(len(size)):
-            avg_size_total += float(size[i])
-        if len(size) != 0:
-            avg_size_total = avg_size_total/len(size)
-        # หาค่าเฉลี่ยของ delay
-        for i in range(len(delay)):
-            avg_delay += float(delay[i])
-        if len(delay) != 0:
-            avg_delay = avg_delay/len(delay)
-        # หาคู่
-        for i in pkt_req:
-            for j in pkt_resp:
-                if i.dns.id == j.dns.id and len(pkt_resp) != old_resp:
-                    matchcount += 1
-                    old_resp = len(pkt_resp)
-                    break
-        num_lost = totalpacket-(matchcount*2)
-        if totalpacket != 0:
-            avg_lost = num_lost/totalpacket
-
-
-def filter_icmp_live_packet(packet):
-    global matchcount, size, delay, num_lost, avg_delay, avg_lost, avg_size_total, totalpacket, pkt_resp, pkt_req, old_resp
-    url = 'https://notify-api.line.me/api/notify'
-    token = '51P7BCktFo6YszYxIhQGFN1mKnGPLT6YYBNUtSJNTsC'
-    headers = {'content-type': 'application/x-www-form-urlencoded',
-               'Authorization': 'Bearer '+token}
+                print('dns request')
     if hasattr(packet, 'icmp'):
         if packet.icmp.type == '0':  # type 0 = Echo reply
             totalpacket += 1
-            pkt_resp.append(packet)
+            pkt_resp_icmp.append(packet)
             size_response.append(packet.length)
             size.append(float(packet.length))
             delay.append(float(packet.icmp.resptime))
-            print('response')
+            print('icmp response')
             if float(packet.icmp.resptime) >= 0.3:
                 msg = 'Delay!!!!'
                 r = requests.post(url, headers=headers,
@@ -235,47 +191,18 @@ def filter_icmp_live_packet(packet):
                 send_alert(receiver, "Delay is too high!")
         elif packet.icmp.type == '8':  # type 8 = Echo request
             totalpacket += 1
-            pkt_req.append(packet)
+            pkt_req_icmp.append(packet)
             size_request.append(packet.length)
             size.append(float(packet.length))
-            print('request')
-        # หาค่าเฉลี่ยของ size ทั้งหมด
-        for i in range(len(size)):
-            avg_size_total += float(size[i])
-        if len(size) != 0:
-            avg_size_total = avg_size_total/len(size)
-        # หาค่าเฉลี่ยของ delay
-        for i in range(len(delay)):
-            avg_delay += float(delay[i])
-        if len(delay) != 0:
-            avg_delay = avg_delay/len(delay)
-        # หาคู่
-        for i in pkt_req:
-            for j in pkt_resp:
-                if i.icmp.seq == j.icmp.seq and len(pkt_resp) != old_resp:
-                    matchcount += 1
-                    old_resp = len(pkt_resp)
-                    break
-        num_lost = totalpacket-(matchcount*2)
-        if totalpacket != 0:
-            avg_lost = num_lost/totalpacket
-
-
-def filter_tcp_live_packet(packet):
-    global matchcount, size, delay, num_lost, avg_delay, avg_lost, avg_size_total, totalpacket, pkt_resp, pkt_req, old_resp
-    url = 'https://notify-api.line.me/api/notify'
-    token = '51P7BCktFo6YszYxIhQGFN1mKnGPLT6YYBNUtSJNTsC'
-    headers = {'content-type': 'application/x-www-form-urlencoded',
-               'Authorization': 'Bearer '+token}
+            print('icmp request')
     if hasattr(packet, 'tcp'):
         try:
             if packet.tcp.analysis_ack_rtt:
                 totalpacket += 1
-                pkt_resp.append(packet)
+                pkt_resp_tcp.append(packet)
                 size_response.append(packet.length)
                 size.append(float(packet.length))
                 delay.append(float(packet.tcp.analysis_ack_rtt))
-                print('response')
                 if float(packet.tcp.analysis_ack_rtt) >= 0.3:
                     msg = 'Delay!!!!'
                     r = requests.post(url, headers=headers,
@@ -291,30 +218,50 @@ def filter_tcp_live_packet(packet):
         except AttributeError as e:
             # ถ้าไม่ใช่ Response
             totalpacket += 1
-            pkt_req.append(packet)
+            pkt_req_tcp.append(packet)
             size_request.append(packet.length)
             size.append(float(packet.length))
-            print('request')
-        # หาค่าเฉลี่ยของ size ทั้งหมด
-        for i in range(len(size)):
-            avg_size_total += float(size[i])
-        if len(size) != 0:
-            avg_size_total = avg_size_total/len(size)
-        # หาค่าเฉลี่ยของ delay
-        for i in range(len(delay)):
-            avg_delay += float(delay[i])
-        if len(delay) != 0:
-            avg_delay = avg_delay/len(delay)
-        # หาคู่
-        for i in pkt_req:
-            for j in pkt_resp:
-                if (i.tcp.ack == j.tcp.nxtseq and i.tcp.dstport == j.tcp.srcport) and len(pkt_resp) != old_resp:
-                    matchcount += 1
-                    old_resp = len(pkt_resp)
-                    break
-        num_lost = totalpacket-(matchcount*2)
-        if totalpacket != 0:
-            avg_lost = num_lost/totalpacket
+    # หาคู่ http
+    for i in pkt_req_http:
+        for j in pkt_resp_http:
+            if (i.tcp.nxtseq == j.tcp.ack and i.http.request_full_uri == j.http.response_for_uri) and len(pkt_resp_http) != old_resp_http:
+                matchcount += 1
+                old_resp_http = len(pkt_resp_http)
+                break
+    # หาคู่ dns
+    for i in pkt_req_dns:
+        for j in pkt_resp_dns:
+            if i.dns.id == j.dns.id and len(pkt_resp_dns) != old_resp_dns:
+                matchcount += 1
+                old_resp_dns = len(pkt_resp_dns)
+                break
+    # หาคู่ icmp
+    for i in pkt_req_icmp:
+        for j in pkt_resp_icmp:
+            if i.icmp.seq == j.icmp.seq and len(pkt_resp_icmp) != old_resp_icmp:
+                matchcount += 1
+                old_resp_icmp = len(pkt_resp_icmp)
+                break
+    # หาคู่ tcp
+    for i in pkt_req_tcp:
+        for j in pkt_resp_tcp:
+            if (i.tcp.ack == j.tcp.nxtseq and i.tcp.dstport == j.tcp.srcport) and len(pkt_resp_tcp) != old_resp_tcp:
+                matchcount += 1
+                old_resp_tcp = len(pkt_resp_tcp)
+                break
+    # หาค่าเฉลี่ยของ size ทั้งหมด
+    for i in range(len(size)):
+        avg_size_total += float(size[i])
+    if len(size) != 0:
+        avg_size_total = avg_size_total/len(size)
+    # หาค่าเฉลี่ยของ delay
+    for i in range(len(delay)):
+        avg_delay += float(delay[i])
+    if len(delay) != 0:
+        avg_delay = avg_delay/len(delay)
+    num_lost = abs(totalpacket-(matchcount*2))
+    if totalpacket != 0:
+        avg_lost = num_lost/totalpacket
 
 
 def filter_http_file_packet(packet):
@@ -551,7 +498,7 @@ def filter_tcp_file_packet(packet):
 
 
 def result():
-    global lasttime, starttime, lapnum, number_packet, delay, avg_size_total, avg_delay, num_lost, totalpacket, avg_lost, x
+    global lasttime, starttime, lapnum, number_packet, delay, avg_size_total, avg_delay, num_lost, totalpacket, avg_lost, x, num1
     avg_delay = round(avg_delay, 6)
     avg_lost = round(avg_lost, 6)
     avg_size_total = round(avg_size_total, 6)
@@ -593,14 +540,29 @@ def result():
 
     for i in range(1, len(delay)+1):
         number_packet.append(i)
+    # for i in range(1, len(num_round_t)+1):
+    #     number_packet_t.append(i)
 
     sheet1.write(6, 5, "total packet")  # จำนวน http ทั้งหมด
     sheet1.write(7, 5, totalpacket)
 
     # สร้าง graph
 
-    plt.rcParams["figure.figsize"] = [6.50, 2.50]
-    plt.rcParams["figure.autolayout"] = True
+    # plt.rcParams["figure.figsize"] = [6.50, 2.50]
+    # plt.rcParams["figure.autolayout"] = True
+
+    # x = number_packet_t
+    # y = num_round_t
+    # plt.title("total packet every second")
+    # plt.xlabel("time(second)")
+    # plt.ylabel("number packet")
+    # plt.plot(x, y)
+    # plt.savefig("image_t.jpg")
+    # plt.show(block=False)
+    # plt.close()
+
+    # plt.rcParams["figure.figsize"] = [6.50, 2.50]
+    # plt.rcParams["figure.autolayout"] = True
 
     x = number_packet
     y = delay
@@ -802,7 +764,7 @@ def send_report(send_to, text, files=None):
         server.sendmail(sender_email, receiver_email, msg.as_string())
 
 def reset_value():
-    global lasttime, starttime, lapnum, number_packet, delay, avg_size_total, avg_delay, num_lost, totalpacket, old_ack, avg_lost, matchcount, old_resp
+    global lasttime, starttime, lapnum, number_packet, delay, avg_size_total, avg_delay, num_lost, totalpacket, old_ack, avg_lost, matchcount,old_resp_http, old_resp_dns, old_resp_icmp, old_resp_tcp
     matchcount = 0
     nxtseq.clear()
     ack.clear()
@@ -821,9 +783,18 @@ def reset_value():
     lasttime = starttime
     old_ack = 0
     avg_lost = 0
-    pkt_resp.clear()
-    pkt_req.clear()
-    old_resp = 0
+    pkt_req_http.clear()
+    pkt_req_dns.clear()
+    pkt_req_icmp.clear()
+    pkt_req_tcp.clear()
+    pkt_resp_http.clear()
+    pkt_resp_dns.clear()
+    pkt_resp_icmp.clear()
+    pkt_resp_tcp.clear()
+    old_resp_http = 0
+    old_resp_dns = 0
+    old_resp_icmp = 0
+    old_resp_tcp = 0
 
 
 def main():

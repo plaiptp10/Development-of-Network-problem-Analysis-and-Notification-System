@@ -6,16 +6,17 @@ plt.rcParams["figure.figsize"] = [7.50, 3.50]
 plt.rcParams["figure.autolayout"] = True
 
 # x and y data points
-x = [0.0222111, 0.0233111, 0.03011220]
-y = [200, 210, 205]
+x = np.array([65, 90, 150, 202, 250, 279, 311, 366, 442, 607])
+y = np.array([5, 13, 55, 125, 234, 322, 445, 738, 1250, 2278])
 
 # Plot the data points
+plt.title("Processing Time")
+plt.xlabel("number of packets")
+plt.ylabel("time(s)")
 plt.grid(False)
-plt.plot(x, y)
+plt.plot(x, y , marker = 'o')
+plt.savefig("processtime.jpg")
 
-
-# LaTex representation
-plt.title("test plot")
 
 # Display the plot
 plt.show()

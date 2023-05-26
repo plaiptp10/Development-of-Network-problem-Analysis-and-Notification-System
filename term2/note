@@ -1,0 +1,34 @@
+if packet[packet.transport_layer].dstport == '80':
+            pkt_req.append(packet)
+            size_request.append(packet.length)
+            size.append(float(packet.length))
+            totalpacket += 1
+            print('request')
+        # response
+        elif packet[packet.transport_layer].srcport == '80':
+            pkt_resp.append(packet)
+            size_response.append(packet.length)
+            size.append(float(packet.length))
+            totalpacket += 1
+            print('response')
+            delay.append(float(packet.http.time))
+            if float(packet.http.time) >= 0.3:
+                msg = 'Delay!!!!'
+                r = requests.post(url, headers=headers,
+                                  data={'message': msg})
+                print(r.text)
+                notification.notify(
+                    title='Alert!!!',
+                    message='High Delay',
+                    app_icon="icon.ico",
+                    timeout=5,
+                )
+                send_alert(receiver, "Delay is too high!")
+
+    # หาคู่ http
+    for i in pkt_reg:
+        for j in pkt_resp:
+            if (i.tcp.nxtseq == j.tcp.ack and i.http.request_full_uri == j.http.response_for_uri) and len(pkt_resp) != old_resp:
+                matchcount += 1
+                old_resp = len(pkt_resp)
+                break
